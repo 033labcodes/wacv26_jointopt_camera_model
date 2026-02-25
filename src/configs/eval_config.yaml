@@ -1,0 +1,16 @@
+# 評価用設定
+# 使用例: python evaluate.py --config configs/flower.yaml --eval_config configs/eval_config.yaml
+
+run_parameters:
+  # 学習済みチェックポイントのディレクトリ（runs/train/... 内）
+  train_run_dir: runs/train/your_run_name
+  output_dir: flower_eval
+  batch_size: 32
+  num_workers: 4
+  num_visualization_samples: 20
+
+load_weights:
+  css: true
+  gamma: true
+  ccm: true
+  base: true
