@@ -35,7 +35,7 @@ poetry install
 
 ### 1. Download Original Dataset
 
-Download the HFD100 dataset from the official source (e.g., [Baidu Cloud](https://pan.baidu.com/s/1XKGafuIbFpI3V77LSeFbOA), access code: `epou`).
+Download the [HFD100 dataset](https://github.com/ying-fu/HFD100) (Zheng, Zhang & Fu, *Knowledge-Based Systems*, 2022). The dataset (~55GB, .mat format) is hosted on [Baidu Cloud](https://pan.baidu.com/s/1XKGafuIbFpI3V77LSeFbOA).
 
 ### 2. Convert to HDF5
 
