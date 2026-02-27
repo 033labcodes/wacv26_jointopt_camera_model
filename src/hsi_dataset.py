@@ -14,10 +14,11 @@ import hashlib
 
 
 class HFD100_Dataset(Dataset):
-    def __init__(self, dataset_name, dataset_type:str, camera_name:str, transform=None, val_ratio=0.1, seed=42, data_dir=None):
+    def __init__(self, dataset_name, dataset_type:str, camera_name:str, transform=None, val_ratio=0.1, seed=42, data_dir=None, srgb_max_dir=None):
         super().__init__()
         self.dataset_name = dataset_name
         self.data_dir = data_dir or os.environ.get('HFD100_DATA_DIR', './data')
+        self.srgb_max_dir = srgb_max_dir
         self.dataset_type = dataset_type
         self.camera_name = camera_name
         self.transform = transform
@@ -94,12 +95,20 @@ class HFD100_Dataset(Dataset):
         
         temp_h5_file.close() # Close HDF5 file after all data is loaded or if only metadata was needed and cache hit
 
-        # Load sRGB max values: check data_dir first, then project data/
-        base_dir = os.path.abspath(self.data_dir)
-        proj_data = os.path.join(os.path.dirname(__file__), '..', 'data')
-        srgb_max_json_path = os.path.join(base_dir, f"{self.dataset_name}_srgb_max_values.json")
-        if not os.path.exists(srgb_max_json_path):
-            srgb_max_json_path = os.path.join(proj_data, f"{self.dataset_name}_srgb_max_values.json")
+        # Load sRGB max values: srgb_max_dir > data_dir > project data/
+        candidates = []
+        if self.srgb_max_dir:
+            candidates.append(os.path.abspath(self.srgb_max_dir))
+        candidates.append(os.path.abspath(self.data_dir))
+        candidates.append(os.path.join(os.path.dirname(__file__), '..', 'data'))
+        srgb_max_json_path = None
+        for d in candidates:
+            p = os.path.join(d, f"{self.dataset_name}_srgb_max_values.json")
+            if os.path.exists(p):
+                srgb_max_json_path = p
+                break
+        if srgb_max_json_path is None:
+            srgb_max_json_path = os.path.join(candidates[-1], f"{self.dataset_name}_srgb_max_values.json")
         self.srgb_max_values = {}
         try:
             with open(srgb_max_json_path, 'r') as f:

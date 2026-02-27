@@ -28,6 +28,8 @@ def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='Train CSS model')
     parser.add_argument('--config', type=str, required=True, help='Config file path')
+    parser.add_argument('--data_dir', type=str, default=None, help='Override data_dir (HDF5 directory)')
+    parser.add_argument('--srgb_max_dir', type=str, default=None, help='Directory for sRGB max JSON files (default: same as data_dir)')
     parser.add_argument('--gradient_clipping', type=float, default=None, help='Directly set gradient clipping threshold')
     parser.add_argument('--css_smoothness_weight', type=float, default=0.0, help='Weight for CSS smoothness constraint loss (0.0 = no smoothness constraint)')
     parser.add_argument('--camera_name', type=str, default=None, help='Camera name to override config (e.g., Sony Nex5N)')
@@ -66,7 +68,7 @@ def _get_classifier_weights_path(config):
 
 # Config keys overridable by args (arg name same as config key)
 _ARG_OVERRIDE_KEYS = [
-    'camera_name', 'train_css', 'train_ccm', 'css_lr', 'ccm_lr', 'gamma_lr',
+    'data_dir', 'srgb_max_dir', 'camera_name', 'train_css', 'train_ccm', 'css_lr', 'ccm_lr', 'gamma_lr',
     'dataset_name', 'train_gamma', 'train_classification', 'classification_lr',
     'classification_model', 'save_name', 'gradient_clipping',
 ]
@@ -92,8 +94,9 @@ def setup_dataset(config):
     train_transform = T.Compose(transform_list)
 
     data_dir = config.get('data_dir', os.environ.get('HFD100_DATA_DIR', './data'))
-    train_dataset = HFD100_Dataset(dataset_name=config['dataset_name'], dataset_type='train', camera_name=config['camera_name'], transform=train_transform, data_dir=data_dir)
-    val_dataset = HFD100_Dataset(dataset_name=config['dataset_name'], dataset_type='val', camera_name=config['camera_name'], data_dir=data_dir)
+    srgb_max_dir = config.get('srgb_max_dir')
+    train_dataset = HFD100_Dataset(dataset_name=config['dataset_name'], dataset_type='train', camera_name=config['camera_name'], transform=train_transform, data_dir=data_dir, srgb_max_dir=srgb_max_dir)
+    val_dataset = HFD100_Dataset(dataset_name=config['dataset_name'], dataset_type='val', camera_name=config['camera_name'], data_dir=data_dir, srgb_max_dir=srgb_max_dir)
     
     train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, num_workers=config['num_workers'], pin_memory=True)
     val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=config['num_workers'], pin_memory=True)

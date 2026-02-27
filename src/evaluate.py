@@ -77,6 +77,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate CSS model')
     parser.add_argument('--config', type=str, required=True, help='Training config path')
     parser.add_argument('--eval_config', type=str, required=True, help='Eval config path (eval_config.yaml)')
+    parser.add_argument('--data_dir', type=str, default=None, help='Override data_dir (HDF5 directory)')
+    parser.add_argument('--srgb_max_dir', type=str, default=None, help='Directory for sRGB max JSON files')
     return parser.parse_args()
 
 
@@ -86,11 +88,13 @@ def setup_dataset(config, batch_size, num_workers):
         raise ValueError("Config must contain 'dataset_name'.")
         
     data_dir = config.get('data_dir', os.environ.get('HFD100_DATA_DIR', './data'))
+    srgb_max_dir = config.get('srgb_max_dir')
     test_dataset = HFD100_Dataset(
         dataset_name=config['dataset_name'],
         dataset_type='test',
         camera_name=config['camera_name'],
-        data_dir=data_dir
+        data_dir=data_dir,
+        srgb_max_dir=srgb_max_dir
     )
     
     test_loader = DataLoader(
@@ -347,6 +351,10 @@ def save_eval_run_config(args, train_cfg, eval_cfg, output_dir):
 def main():
     args = parse_args()
     train_config = load_config(args.config)
+    if args.data_dir is not None:
+        train_config['data_dir'] = args.data_dir
+    if args.srgb_max_dir is not None:
+        train_config['srgb_max_dir'] = args.srgb_max_dir
     eval_cfg = load_eval_config(args.eval_config)
     
     device = torch.device(train_config['device'])

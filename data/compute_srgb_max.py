@@ -226,13 +226,13 @@ def main(dataset_name, output_json_path, data_dir, cmf_pt_path):
 
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    default_cmf = os.path.join(script_dir, '..', 'src', 'camera_parameters', 'cmf', 'cie1931_xyz_cmf.pt')
+    default_cmf = os.path.join(script_dir, '..', 'src', 'camera_parameters', 'css', 'cmf_XYZ.pt')
     
     parser = argparse.ArgumentParser(description="Compute maximum sRGB values for HSI datasets by simulating sRGB camera slicing.")
     parser.add_argument("dataset_name", choices=['HFD100_Flower', 'HFD100_Leaves', 'HFD100_Scenes'], help="Name of the HFD100 dataset to process.")
     parser.add_argument("-o", "--output", default=None, help="Path to save the output JSON file. Defaults to '{dataset_name}_srgb_max_values.json'.")
     parser.add_argument("-d", "--data-dir", default=os.environ.get('HFD100_DATA_DIR', './data'), help="Directory containing Mat*.h5 files. Default: HFD100_DATA_DIR or ./data")
-    parser.add_argument("--cmf-path", default=default_cmf, help="Path to cie1931_xyz_cmf.pt. Default: src/camera_parameters/cmf/cie1931_xyz_cmf.pt")
+    parser.add_argument("--cmf-path", default=default_cmf, help="Path to cmf_XYZ.pt. Default: src/camera_parameters/css/cmf_XYZ.pt")
     args = parser.parse_args()
     
     output_file = args.output if args.output else os.path.join(script_dir, f"{args.dataset_name}_srgb_max_values.json")

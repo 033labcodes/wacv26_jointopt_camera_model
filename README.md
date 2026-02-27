@@ -123,11 +123,12 @@ data/
 └── HFD100_Leaves_srgb_max_values.json  (generated)
 ```
 
-## Environment Variables
+## Config / Environment
 
-| Variable | Description |
-|----------|-------------|
-| `HFD100_DATA_DIR` | Directory containing HDF5 files and optional sRGB max JSON files. Default: `./data` |
+| Config / Arg | Description |
+|--------------|-------------|
+| `data_dir` | HDF5 directory. Config or `--data_dir`. Default: `./data` (or `HFD100_DATA_DIR`) |
+| `srgb_max_dir` | Directory for sRGB max JSON files. Config or `--srgb_max_dir`. Default: same as `data_dir` |
 
 ## Citation
 
