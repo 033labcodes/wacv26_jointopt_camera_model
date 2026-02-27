@@ -1,32 +1,28 @@
 # HFD100_Flower 用設定
-# base_config を継承しつつ dataset_name を Flower に
 
 dataset_name: HFD100_Flower
 data_dir: ./data
 batch_size: 32
 num_workers: 4
 
-camera_name: sRGB
+camera_name: XYZ
 epochs: 300
 train_css: True
 css_lr: 0.0001
 train_ccm: True
 ccm_lr: 0.0001
 
-gamma_model_type: GradientLimitedGammaV2
-gamma_eps: 1e-6
 gradient_clipping: 1000
 train_gamma: True
 gamma_lr: 0.0001
 
 train_classification: True
 classification_lr: 0.0001
-classification_dropout_p: 0.5
-classification_model: SE_ResNet
+classification_model: ResNet
+classifer_weights: #download and write path
 
 device: cuda
 lr_step_size: 50
 lr_gamma: 0.5
 
-save_name: flower_sRGB_seresnet
-save_interval: 10
+save_name: flower_sRGB_resnet

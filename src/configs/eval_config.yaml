@@ -4,6 +4,8 @@
 run_parameters:
   # 学習済みチェックポイントのディレクトリ（runs/train/... 内）
   train_run_dir: runs/train/your_run_name
+  # ロードするチェックポイント: best_model | latest
+  checkpoint: best_model
   output_dir: flower_eval
   batch_size: 32
   num_workers: 4

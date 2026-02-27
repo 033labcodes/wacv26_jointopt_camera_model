@@ -6,7 +6,6 @@ import timm
 import random
 import numpy as np
 import argparse
-from datetime import datetime
 from torch.utils.data import DataLoader
 import torchvision.transforms.v2 as T
 from torchvision import models
@@ -17,8 +16,8 @@ import matplotlib.pyplot as plt
 
 from hsi_dataset import HFD100_Dataset
 from model_wrapper import ModelWrapper
-from models.custom_css import CustomCSS
-from models.custom_isp import GradientLimitedGammaV1, GradientLimitedGammaV2, ColorCorrectionMatrix, GammaEpsAdd, GammaEpsClip
+from models.custom_css import CSSModel
+from models.custom_isp import ColorCorrectionMatrix, DerivativeClippingGamma
 from utils.visualization import save_classification_samples
 
 
@@ -30,9 +29,10 @@ def load_config(config_path):
 
 
 def validate_config(config):
-    """設定の検証"""
-    required_fields = ['data_dir', 'camera_name', 'device']
-    for field in required_fields:
+    """設定の検証（train と同様に data_dir は省略可，env/デフォルトで補完）"""
+    if 'data_dir' not in config or config['data_dir'] is None:
+        config['data_dir'] = os.environ.get('HFD100_DATA_DIR', './data')
+    for field in ['camera_name', 'device']:
         if field not in config or config[field] is None:
             raise ValueError(f'設定ファイルに必須フィールド {field} がありません')
     return config
@@ -40,34 +40,35 @@ def validate_config(config):
 
 def load_eval_config(eval_config_path):
     """評価設定ファイル (eval_config.yaml) を読み込む"""
+    default_eval_cfg = {
+        'run_parameters': {
+            'train_run_dir': 'runs/train/your_run_name',
+            'checkpoint': 'best_model',
+            'output_dir': 'eval_output',
+            'batch_size': 32,
+            'num_workers': 4,
+            'num_visualization_samples': 20,
+        },
+        'load_weights': {'css': True, 'gamma': True, 'ccm': True, 'base': True},
+    }
     if not os.path.exists(eval_config_path):
-        print(f"警告: 評価設定ファイル {eval_config_path} が見つかりません。全てのモデルの重みをロードします。")
-        return {
-            'load_weights': {
-                'css': True,
-                'gamma': True,
-                'ccm': True,
-                'base': True
-            }
-        }
+        print(f"警告: 評価設定ファイル {eval_config_path} が見つかりません。デフォルト設定を使用します。")
+        return default_eval_cfg
     with open(eval_config_path, 'r') as f:
         eval_cfg = yaml.safe_load(f)
-    
-    # load_weights セクションのデフォルト値を設定
+
+    # run_parameters のデフォルト補完
+    if 'run_parameters' not in eval_cfg:
+        eval_cfg['run_parameters'] = {}
+    for k, v in default_eval_cfg['run_parameters'].items():
+        eval_cfg['run_parameters'].setdefault(k, v)
+
+    # load_weights のデフォルト補完
     if 'load_weights' not in eval_cfg:
         eval_cfg['load_weights'] = {}
-    
-    default_load_flags = {
-        'css': True,
-        'gamma': True,
-        'ccm': True,
-        'base': True
-    }
-    for component, default_flag in default_load_flags.items():
-        if component not in eval_cfg['load_weights']:
-            eval_cfg['load_weights'][component] = default_flag
-            print(f"情報: eval_config.yaml の load_weights に {component} が未指定のため、デフォルト値 ({default_flag}) を使用します。")
-            
+    for k, v in default_eval_cfg['load_weights'].items():
+        eval_cfg['load_weights'].setdefault(k, v)
+
     return eval_cfg
 
 
@@ -107,22 +108,18 @@ def setup_dataset(config, batch_size, num_workers):
 def setup_models(train_config, train_run_dir_path, device, eval_cfg, num_classes):
     """モデルのセットアップと重みの読み込み"""
     script_dir = os.path.dirname(os.path.abspath(__file__))
+    checkpoint_subdir = eval_cfg.get('run_parameters', {}).get('checkpoint', 'best_model')
     
     # CSSモデルのセットアップ
-    if train_config['camera_name'] == 'sRGB' or train_config['camera_name'] == 'gray':
-        init_css_weights_path = os.path.join(script_dir, 'camera_parameters/cmf', "cie1931_xyz_cmf.pt")
-    else:
-        init_css_weights_path = os.path.join(script_dir, 'camera_parameters/css', f"cmf_{train_config['camera_name']}.pt")
+    init_css_weights_path = os.path.join(script_dir, 'camera_parameters/css', f"cmf_{train_config['camera_name']}.pt")
     
     if not os.path.exists(init_css_weights_path):
-        raise FileNotFoundError(f"デフォルトCMFファイルが見つかりません: {init_css_weights_path}")
+        raise FileNotFoundError(f"CSSモデルの重みファイルが見つかりません: {init_css_weights_path}")
     init_css_weights = torch.load(init_css_weights_path).float()
-    css_model = CustomCSS(init_weights=init_css_weights, trainable=False).to(device)
+    css_model = CSSModel(init_weights=init_css_weights, in_channels=init_css_weights.shape[1], trainable=False).to(device)
 
     if eval_cfg.get('load_weights', {}).get('css', True):
-        weights_path = os.path.join(train_run_dir_path, 'epoch_99', 'css_model.pth')
-        # weights_path = os.path.join(train_run_dir_path, 'epoch_299', 'css_model.pth')
-        # weights_path = os.path.join(train_run_dir_path, 'best_model', 'css_model.pth')
+        weights_path = os.path.join(train_run_dir_path, checkpoint_subdir, 'css_model.pth')
         print(f"CSSモデルの重みをロードします: {weights_path}")
         if not os.path.exists(weights_path):
             raise FileNotFoundError(f"CSSモデルの重みファイルが見つかりません: {weights_path}")
@@ -132,30 +129,19 @@ def setup_models(train_config, train_run_dir_path, device, eval_cfg, num_classes
     css_model.eval()
     
     # ガンマモデルのセットアップ
-    if train_config['gamma_model_type'] == 'GradientLimitedGammaV1':
-        gamma_model = GradientLimitedGammaV1(init_gamma=1/2.2, grad_th=train_config['gradient_clipping'], trainable=train_config['train_gamma']).to(device)
-    elif train_config['gamma_model_type'] == 'GradientLimitedGammaV2':
-        gamma_model = GradientLimitedGammaV2(init_gamma=1/2.2, grad_th=train_config['gradient_clipping'], trainable=train_config['train_gamma']).to(device)
-    elif train_config['gamma_model_type'] == 'GammaEpsAdd':
-        gamma_model = GammaEpsAdd(init_gamma=1/2.2, trainable=train_config['train_gamma'], eps=float(train_config['gamma_eps'])).to(device)
-    elif train_config['gamma_model_type'] == 'GammaEpsClip':
-        gamma_model = GammaEpsClip(init_gamma=1/2.2, trainable=train_config['train_gamma'], eps=float(train_config['gamma_eps'])).to(device)
+    gamma_model = DerivativeClippingGamma(init_gamma=1/2.2, grad_th=train_config['gradient_clipping'], trainable=train_config['train_gamma']).to(device)
     if eval_cfg.get('load_weights', {}).get('gamma', True):
-        weights_path = os.path.join(train_run_dir_path, 'epoch_99', 'gamma_model.pth')
-        # weights_path = os.path.join(train_run_dir_path, 'epoch_299', 'gamma_model.pth')
-        # weights_path = os.path.join(train_run_dir_path, 'epoch_289', 'gamma_model.pth')
-        # weights_path = os.path.join(train_run_dir_path, 'best_model', 'gamma_model.pth')
+        weights_path = os.path.join(train_run_dir_path, checkpoint_subdir, 'gamma_model.pth')
         print(f"Gammaモデルの重みをロードします: {weights_path}")
         if not os.path.exists(weights_path):
             raise FileNotFoundError(f"Gammaモデルの重みファイルが見つかりません: {weights_path}")
         gamma_model.load_state_dict(torch.load(weights_path))
-        print("gamma_model.state_dict(): ", gamma_model.state_dict())
     else:
         print("Gammaモデル: 学習済み重みをロードせず、デフォルトのガンマ補正を使用します。")
     gamma_model.eval()
     
-    # CCMモデルのセットアップ
-    if train_config['camera_name'] == 'sRGB' or train_config['camera_name'] == 'gray':
+    # CCMモデルのセットアップ（train と同じロジック: XYZ -> ccm_sRGB）
+    if train_config['camera_name'] == 'XYZ':
         init_ccm_weights_path = os.path.join(script_dir, 'camera_parameters/ccm', "ccm_sRGB.pt")
     else:
         init_ccm_weights_path = os.path.join(script_dir, 'camera_parameters/ccm', f"ccm_{train_config['camera_name']}.pt")
@@ -165,27 +151,21 @@ def setup_models(train_config, train_run_dir_path, device, eval_cfg, num_classes
     else:
         if train_config['camera_name'] != 'sRGB':
             print(f"警告: デフォルトCCMファイル {init_ccm_weights_path} が見つかりません。{train_config['camera_name']} 用に単位行列を使用します。")
-        init_ccm_weights = torch.eye(3).float() # フォールバック
-    print(init_ccm_weights)
+        init_ccm_weights = torch.eye(3).float()
     ccm_model = ColorCorrectionMatrix(init_ccm=init_ccm_weights, trainable=False).to(device)
     if eval_cfg.get('load_weights', {}).get('ccm', True):
-        weights_path = os.path.join(train_run_dir_path, 'epoch_99', 'ccm_model.pth')
-        # weights_path = os.path.join(train_run_dir_path, 'epoch_299', 'ccm_model.pth')
-        # weights_path = os.path.join(train_run_dir_path, 'best_model', 'ccm_model.pth')
+        weights_path = os.path.join(train_run_dir_path, checkpoint_subdir, 'ccm_model.pth')
         print(f"CCMモデルの重みをロードします: {weights_path}")
         if not os.path.exists(weights_path):
             raise FileNotFoundError(f"CCMモデルの重みファイルが見つかりません: {weights_path}")
         ccm_model.load_state_dict(torch.load(weights_path))
-        print(ccm_model.state_dict())
     else:
         print(f"CCMモデル: 学習済み重みをロードせず、{train_config['camera_name']} のデフォルトCCMを使用します。")
     ccm_model.eval()
     
     
     if eval_cfg.get('load_weights', {}).get('base', True):
-        weights_path = os.path.join(train_run_dir_path, 'epoch_99', 'classification_model.pth')
-        # weights_path = os.path.join(train_run_dir_path, 'epoch_299', 'classification_model.pth')
-        # weights_path = os.path.join(train_run_dir_path, 'best_model', 'classification_model.pth')
+        weights_path = os.path.join(train_run_dir_path, checkpoint_subdir, 'classification_model.pth')
         print(f"ベースモデルの学習済み重みをロードします: {weights_path}")
         if not os.path.exists(weights_path):
             raise FileNotFoundError(f"ベースモデルの重みファイルが見つかりません: {weights_path}")
@@ -210,28 +190,15 @@ def setup_models(train_config, train_run_dir_path, device, eval_cfg, num_classes
             }
             
             new_state_dict = loaded_state_dict.copy()
-            remap_happened = False
             for saved_key, new_key in key_mappings.items():
                 if saved_key in new_state_dict:
-                    print(f"  キーをリマップします: {saved_key} -> {new_key}")
                     new_state_dict[new_key] = new_state_dict.pop(saved_key)
-                    remap_happened = True
-            
-            if remap_happened:
-                print("state_dict のキーリマップを適用しました。")
-
-            # Dropout層など、学習時にのみ存在する層の重みは無視して読み込む
             base_model.load_state_dict(new_state_dict, strict=False)
-            print("ベースモデルに重みを正常にロードしました（strict=False）。")
 
         elif model_name == 'ViT':
             base_model = timm.create_model('vit_small_patch16_224.augreg_in21k', pretrained=True, img_size=64, num_classes=num_classes).to(device)
             pretrained_state_dict = torch.load(weights_path, map_location=device)
             base_model.load_state_dict(pretrained_state_dict)
-        elif model_name == 'WideResNet':
-            base_model = models.wide_resnet50_2(weights=None)
-            num_ftrs = base_model.fc.in_features
-            base_model.fc = nn.Linear(num_ftrs, num_classes)
         elif model_name == 'SE_ResNet':
             base_model = timm.create_model('seresnet50', pretrained=True).to(device)
             num_ftrs = base_model.fc.in_features
@@ -246,37 +213,28 @@ def setup_models(train_config, train_run_dir_path, device, eval_cfg, num_classes
             }
             
             new_state_dict = loaded_state_dict.copy()
-            remap_happened = False
             for saved_key, new_key in key_mappings.items():
                 if saved_key in new_state_dict:
-                    print(f"  キーをリマップします: {saved_key} -> {new_key}")
                     new_state_dict[new_key] = new_state_dict.pop(saved_key)
-                    remap_happened = True
-            
-            if remap_happened:
-                print("state_dict のキーリマップを適用しました。")
-
             base_model.load_state_dict(new_state_dict, strict=False)
         else:
             raise ValueError(f"サポートされていないモデルタイプです: {model_name}")
 
         base_model = base_model.to(device)
-
-        # --- 重みのロードとキーの修正 ---
-        
         base_model.eval()
     
     return css_model, gamma_model, ccm_model, base_model
 
 
 def custom_evaluate(model_wrapper, test_loader, output_dir, num_visualization_samples=20):
-    """拡張された評価メソッド"""
+    """拡張された評価メソッド（train の ModelWrapper.process_batch と同様のパイプライン）"""
     css_model = model_wrapper.css_model
     gamma_model = model_wrapper.gamma_model
     ccm_model = model_wrapper.ccm_model
     base_model = model_wrapper.classification_model
     device = model_wrapper.device
-    
+    camera_name = model_wrapper.camera_name
+
     css_model.eval()
     gamma_model.eval()
     ccm_model.eval()
@@ -308,7 +266,7 @@ def custom_evaluate(model_wrapper, test_loader, output_dir, num_visualization_sa
         for i, (inputs_hsi, target) in enumerate(test_loader):
             print(f'\rEvaluation: {i+1}/{num_batches}', end='')
             
-            # HSIをRGBに変換
+            # HSIをRGBに変換（train の process_batch と同じ順序）
             inputs_hsi = inputs_hsi.to(device)
             rgb_images = css_model(inputs_hsi)
             rgb_images = ccm_model(rgb_images)

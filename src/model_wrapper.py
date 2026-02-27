@@ -24,17 +24,12 @@ class ModelWrapper:
         rgb_images = self.ccm_model(rgb_images)
         rgb_images = rgb_images.clamp(min=0)
         rgb_images = self.gamma_model(rgb_images)
-
-        if self.camera_name == 'gray':
-            gray_values = rgb_images.mean(dim=1, keepdim=True)
-            rgb_images = gray_values.expand(-1, 3, -1, -1)
         
         if training:
             self.classification_model.train()
             outputs = self.classification_model(rgb_images)
             classification_loss = self.criterion(outputs, target)
             
-            # CSS smoothness lossを追加
             total_loss = classification_loss
             if self.css_smoothness_weight > 0 and self.css_model.trainable:
                 smoothness_loss = self.css_model.compute_smoothness_loss()
@@ -43,10 +38,9 @@ class ModelWrapper:
             
             total_loss.backward()
             self.optimizer.step()
-            if self.camera_name != 'sRGB':
-                self.css_model.normalize_weights()
+            self.css_model.normalize_weights()
             
-            loss = classification_loss  # メトリクス用に分類損失を保持
+            loss = classification_loss
         else:
             self.classification_model.eval()
             with torch.no_grad():

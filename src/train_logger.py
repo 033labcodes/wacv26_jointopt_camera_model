@@ -3,15 +3,13 @@ import os
 from datetime import datetime
 import yaml
 import torch
-import wandb
 
 class TrainLogger:
-    def __init__(self, save_dir, log_file='log.csv', use_wandb=True):
+    def __init__(self, save_dir, log_file='log.csv'):
         """ロガーの初期化"""
         self.output_dir = save_dir
         self.log_path = os.path.join(self.output_dir, log_file)
-        self.use_wandb = use_wandb
-        
+
         self.best_val_loss = float('inf')
         self.epoch = 0
         self.total_epochs = 0
@@ -119,22 +117,11 @@ class TrainLogger:
         self.total_epochs = total_epochs
         print(f'\nEpoch [{current_epoch}/{total_epochs}]')
 
-    def log_epoch_metrics(self, train_metrics, val_metrics, epoch):
-        """エポックごとのメトリクスをwandbに記録する"""
-        if not self.use_wandb:
-            return
-            
-        metrics = {
-            'train_loss': train_metrics['train_loss'],
-            'train_accuracy': train_metrics['train_accuracy'],
-            'val_loss': val_metrics['val_loss'],
-            'val_accuracy': val_metrics['val_accuracy'],
-            'epoch': epoch + 1
-        }
-        wandb.log(metrics)
-
     def save_checkpoint(self, epoch, css_model, gamma_model, ccm_model, classification_model, is_best=False):
         """チェックポイントを保存する
+        
+        best_model/: val_loss が最良のときのみ上書き保存
+        latest/: 毎エポック上書き保存（常に best と latest の2つ分のみ保持）
         
         Args:
             epoch: 現在のエポック
@@ -142,31 +129,27 @@ class TrainLogger:
             gamma_model: ガンマモデル
             ccm_model: CCMモデル
             classification_model: 分類モデル
-            is_best: 最良モデルの場合True
+            is_best: True のとき best_model/, False のとき latest/ に保存
         """
-        # 各モデルを個別のファイルに保存
-        models_dir = os.path.join(self.output_dir, f'epoch_{epoch}')
         if is_best:
             models_dir = os.path.join(self.output_dir, 'best_model')
+        else:
+            models_dir = os.path.join(self.output_dir, 'latest')
         os.makedirs(models_dir, exist_ok=True)
-        
-        # CSSモデルの保存
+
+        # 各モデルを個別のファイルに保存（パラメータごと）
         css_path = os.path.join(models_dir, 'css_model.pth')
         torch.save(css_model.state_dict(), css_path)
-        
-        # ガンマモデルの保存
+
         gamma_path = os.path.join(models_dir, 'gamma_model.pth')
         torch.save(gamma_model.state_dict(), gamma_path)
-        
-        # CCMモデルの保存
+
         ccm_path = os.path.join(models_dir, 'ccm_model.pth')
         torch.save(ccm_model.state_dict(), ccm_path)
-        
-        # 分類モデルの保存
+
         classification_path = os.path.join(models_dir, 'classification_model.pth')
         torch.save(classification_model.state_dict(), classification_path)
-        
-        # モデル設定情報も保存
+
         model_info = {
             'epoch': epoch,
             'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -175,8 +158,9 @@ class TrainLogger:
         info_path = os.path.join(models_dir, 'model_info.yaml')
         with open(info_path, 'w') as f:
             yaml.dump(model_info, f)
-        
-        print(f'各モデルを保存しました: {models_dir}')
+
+        label = 'best_model' if is_best else 'latest'
+        print(f'モデルを保存しました: {models_dir}')
 
     def log_message(self, message):
         """任意のメッセージをログに記録する"""
@@ -192,9 +176,3 @@ class TrainLogger:
         message_log_path = os.path.join(self.output_dir, 'messages.log')
         with open(message_log_path, 'a') as f:
             f.write(log_entry)
-            
-        # WandBにも記録 (有効な場合)
-        if self.use_wandb and wandb.run is not None:
-            # WandBでは通常、メトリクスとして数値を記録するが、テキストメッセージも記録可能
-            # 'custom_logs'のようなキーで記録するか、wandb.alertを使うことも検討できる
-            wandb.log({"messages": message})

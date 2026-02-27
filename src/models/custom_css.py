@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class CustomCSS(nn.Module):
+class CSSModel(nn.Module):
     def __init__(self, init_weights: torch.Tensor = None, in_channels=20, out_channels=3, trainable=True):
         super().__init__()
         self.trainable = trainable
@@ -34,14 +34,10 @@ class CustomCSS(nn.Module):
         CSS感度関数の滑らかさ制約を計算
         隣接する波長間の差の二乗平均を返す
         """
-        # conv.weightの形状: (out_channels, in_channels, 1, 1)
-        # カーネルサイズを削除: (out_channels, in_channels)
         weights = self.conv.weight.squeeze(-1).squeeze(-1)
         
-        # 隣接する波長間の差を計算
         diff = weights[:, 1:] - weights[:, :-1]
         
-        # 差の二乗平均
         smoothness_loss = torch.mean(diff ** 2)
         
         return smoothness_loss

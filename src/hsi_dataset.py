@@ -136,7 +136,7 @@ class HFD100_Dataset(Dataset):
         # Retrieve HSI data from memory
         hsi_data = self.loaded_hsi_data[hsi_key_for_memory]
 
-        if self.camera_name == 'sRGB' or self.camera_name == 'gray':
+        if self.camera_name == 'XYZ':
             target_lower_wavelength=451
             target_upper_wavelength=823
         else:
@@ -187,39 +187,3 @@ class HFD100_Dataset(Dataset):
         wavelengths = np.linspace(451, 855, 151)[::5]
         wavelengths = np.round(wavelengths).astype(int)
         return wavelengths
-
-
-if __name__ == '__main__':
-    # Example usage:
-    print("Testing HFD100_Dataset with preloading...")
-    # Ensure you have a dummy srgb_max_values file or handle the warning
-    dummy_srgb_max_path = os.path.join(os.path.dirname(__file__), '..', 'data', f"HFD100_Flower_srgb_max_values.json")
-    if not os.path.exists(os.path.dirname(dummy_srgb_max_path)):
-        os.makedirs(os.path.dirname(dummy_srgb_max_path))
-    if not os.path.exists(dummy_srgb_max_path):
-        with open(dummy_srgb_max_path, 'w') as f:
-            json.dump({"train/hs/dummy.mat": 1.0}, f) # Create a dummy file if it doesn't exist
-
-    try:
-        train_dataset = HFD100_Dataset(dataset_name='HFD100_Flower', dataset_type='train', camera_name='Sony')
-        print(f"Train dataset loaded. Number of samples: {len(train_dataset)}")
-        if len(train_dataset) > 0:
-            sample_hsi, sample_target = train_dataset[0]
-            print(f"First sample HSI shape: {sample_hsi.shape}, Target: {sample_target}")
-
-        val_dataset = HFD100_Dataset(dataset_name='HFD100_Flower', dataset_type='val', camera_name='sRGB')
-        print(f"Validation dataset loaded. Number of samples: {len(val_dataset)}")
-        if len(val_dataset) > 0:
-            sample_hsi_val, sample_target_val = val_dataset[0]
-            print(f"First val sample HSI shape: {sample_hsi_val.shape}, Target: {sample_target_val}")
-
-        test_dataset = HFD100_Dataset(dataset_name='HFD100_Flower', dataset_type='test', camera_name='Sony')
-        print(f"Test dataset loaded. Number of samples: {len(test_dataset)}")
-        if len(test_dataset) > 0:
-            sample_hsi_test, sample_target_test = test_dataset[0]
-            print(f"First test sample HSI shape: {sample_hsi_test.shape}, Target: {sample_target_test}")
-
-    except Exception as e:
-        print(f"Error during dataset test: {e}")
-        import traceback
-        traceback.print_exc()
