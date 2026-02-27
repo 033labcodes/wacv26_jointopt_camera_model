@@ -97,6 +97,10 @@ run_parameters:
 python src/evaluate.py --config src/configs/flower.yaml --eval_config src/configs/eval_config.yaml
 ```
 
+## Pretrained Weights
+
+Classification backbones (ResNet-18, ViT-S/16, SE-ResNet50) pretrained on HFD100 Flower/Leaves are hosted on [Hugging Face](https://huggingface.co/dekkaiinu/wacv26_jointopt_pretrained) and downloaded automatically based on `classification_model` and `dataset_name`.
+
 ## Main Files
 
 | File | Purpose |

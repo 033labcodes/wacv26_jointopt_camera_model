@@ -19,7 +19,6 @@ gamma_lr: 0.0001
 train_classification: True
 classification_lr: 0.0001
 classification_model: ResNet
-classifer_weights: #download and write path
 
 device: cuda
 lr_step_size: 50

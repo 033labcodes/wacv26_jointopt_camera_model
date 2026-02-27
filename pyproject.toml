@@ -18,6 +18,7 @@ torchvision = "^0.22.0"
 tqdm = "^4.67.1"
 scikit-learn = "^1.6.1"
 timm = "^1.0.15"
+huggingface-hub = "^0.26.0"
 
 [build-system]
 requires = ["poetry-core"]

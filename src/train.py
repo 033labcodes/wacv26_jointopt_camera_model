@@ -1,6 +1,7 @@
 import os
 import yaml
 import torch
+from huggingface_hub import hf_hub_download
 import torch.hub
 import argparse
 import torch.optim as optim
@@ -40,15 +41,34 @@ def parse_args():
     parser.add_argument('--train_classification', type=lambda x: (str(x).lower() == 'true'), default=None, help='Override train_classification (true/false)')
     parser.add_argument('--classification_lr', type=float, default=None, help='Override classification_lr (float)')
     parser.add_argument('--classification_model', type=str, default=None, help='Override classification_model (e.g., ResNet, ViT, SE_ResNet)')
-    parser.add_argument('--classifer_weights', type=str, default=None, help='Override classifer_weights (e.g., /path/to/weights.pth)')
     parser.add_argument('--save_name', type=str, default=None, help='Override save_name (e.g., wacv_exp1_resnet_nocss_noisp_leaves_canon)')
     return parser.parse_args()
+
+# Hugging Face repo for pretrained classification weights
+HF_PRETRAINED_REPO = "dekkaiinu/wacv26_jointopt_pretrained"
+# Mapping: (classification_model, dataset_name) -> HF filename
+_HF_PRETRAINED_FILES = {
+    ("ResNet", "HFD100_Flower"): "resnet18_flower_classification_model.pth",
+    ("ResNet", "HFD100_Leaves"): "resnet18_leaves_classification_model.pth",
+    ("ViT", "HFD100_Flower"): "vits16_flower_classification_model.pth",
+    ("ViT", "HFD100_Leaves"): "vits16_leaves_classification_model.pth",
+    ("SE_ResNet", "HFD100_Flower"): "seresnet50_flower_classification_model.pth",
+    ("SE_ResNet", "HFD100_Leaves"): "seresnet50_leaves_classification_model.pth",
+}
+
+def _get_classifier_weights_path(config):
+    """Download and return path to classifier weights from Hugging Face."""
+    key = (config["classification_model"], config["dataset_name"])
+    filename = _HF_PRETRAINED_FILES.get(key)
+    if not filename:
+        return None
+    return hf_hub_download(repo_id=HF_PRETRAINED_REPO, filename=filename)
 
 # Config keys overridable by args (arg name same as config key)
 _ARG_OVERRIDE_KEYS = [
     'camera_name', 'train_css', 'train_ccm', 'css_lr', 'ccm_lr', 'gamma_lr',
     'dataset_name', 'train_gamma', 'train_classification', 'classification_lr',
-    'classification_model', 'classifer_weights', 'save_name', 'gradient_clipping',
+    'classification_model', 'save_name', 'gradient_clipping',
 ]
 
 def apply_arg_overrides(args, config):
@@ -99,13 +119,17 @@ def setup_models(config, num_classes, device):
     gamma_model = DerivativeClippingGamma(init_gamma=1/2.2, grad_th=config['gradient_clipping'], trainable=config['train_gamma']).to(device)
 
     
+    weights_path = _get_classifier_weights_path(config)
+    if weights_path:
+        print(f"Loading classifier weights from: {weights_path}")
+
     if config['classification_model'] == 'ResNet':
         classification_model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1).to(device)
         num_ftrs = classification_model.fc.in_features
         classification_model.fc = nn.Sequential(nn.Dropout(p=0.5), nn.Linear(num_ftrs, num_classes)).to(device)
 
-        if config['classifer_weights'] is not None:
-            pretrained_state_dict = torch.load(config['classifer_weights'], map_location=device)
+        if weights_path is not None:
+            pretrained_state_dict = torch.load(weights_path, map_location=device)
             current_model_state_dict = classification_model.state_dict()
             
             new_state_dict = {}
@@ -122,16 +146,16 @@ def setup_models(config, num_classes, device):
 
     elif config['classification_model'] == 'ViT':
         classification_model = timm.create_model('vit_small_patch16_224.augreg_in21k', pretrained=True, img_size=64, num_classes=num_classes).to(device)
-        if config['classifer_weights'] is not None:
-            pretrained_state_dict = torch.load(config['classifer_weights'], map_location=device)
+        if weights_path is not None:
+            pretrained_state_dict = torch.load(weights_path, map_location=device)
             classification_model.load_state_dict(pretrained_state_dict)
     
     elif config['classification_model'] == 'SE_ResNet':
         classification_model = timm.create_model('seresnet50', pretrained=True).to(device)
         num_ftrs = classification_model.fc.in_features
         classification_model.fc = nn.Sequential(nn.Dropout(p=0.5), nn.Linear(num_ftrs, num_classes)).to(device)
-        if config['classifer_weights'] is not None:
-            pretrained_state_dict = torch.load(config['classifer_weights'], map_location=device)
+        if weights_path is not None:
+            pretrained_state_dict = torch.load(weights_path, map_location=device)
             classification_model.load_state_dict(pretrained_state_dict)
     else:
         raise ValueError(f"Unsupported model type: {config['classification_model']}")
