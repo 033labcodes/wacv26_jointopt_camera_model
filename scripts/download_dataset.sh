@@ -1,14 +1,20 @@
 #!/bin/bash
-# HFD100 データセットのダウンロード案内
+# HFD100 dataset download and preprocessing instructions
 
 echo ""
-echo "=== HFD100 Dataset Download ==="
+echo "=== HFD100 Dataset ==="
 echo ""
-echo "URL: https://pan.baidu.com/s/1XKGafuIbFpI3V77LSeFbOA"
-echo "Access code: epou"
+echo "1. Download .mat files from:"
+echo "   URL: https://pan.baidu.com/s/1XKGafuIbFpI3V77LSeFbOA"
+echo "   Access code: epou"
 echo ""
-echo "1. Download .mat files from Baidu Cloud"
 echo "2. Convert .mat to HDF5 (MatFlower60.h5, MatLeaves60.h5, MatScenes60.h5)"
-echo "3. Set HFD100_DATA_DIR or config data_dir to the HDF5 directory"
-echo "4. Run: python data/compute_srgb_max.py HFD100_Flower -o data/HFD100_Flower_srgb_max_values.json"
+echo "   (Conversion script not included; prepare HDF5 files yourself.)"
+echo ""
+echo "3. Run preprocessing:"
+echo "   export HFD100_DATA_DIR=/path/to/your/hdf5/directory"
+echo "   python data/compute_srgb_max.py HFD100_Flower -d \$HFD100_DATA_DIR -o data/HFD100_Flower_srgb_max_values.json"
+echo "   python data/compute_srgb_max.py HFD100_Leaves -d \$HFD100_DATA_DIR -o data/HFD100_Leaves_srgb_max_values.json"
+echo ""
+echo "4. Set HFD100_DATA_DIR or data_dir in config, then train and evaluate."
 echo ""

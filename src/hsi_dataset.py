@@ -25,13 +25,11 @@ class HFD100_Dataset(Dataset):
         self.seed = seed
         self.hdf5_path = self._get_hdf5_path()
         
-        # --- キャッシュ機構の追加 ---
+        # Cache for loaded HSI data
         cache_dir = os.path.join(os.path.dirname(__file__), '..', '.hsi_cache')
         os.makedirs(cache_dir, exist_ok=True)
         
-        # dataset_name, dataset_type, val_ratio, seed でキャッシュキーを生成
-        # transform は __getitem__ で適用されるため、ロードするデータ自体には影響しない
-        # camera_name もロードするHSIデータ自体には影響しないため、キーから除外
+        # Cache key: dataset_name, dataset_type, val_ratio, seed (transform/camera_name don't affect loaded data)
         cache_key_parts = [
             str(self.dataset_name),
             str(self.dataset_type),
@@ -40,7 +38,6 @@ class HFD100_Dataset(Dataset):
         ]
         cache_filename = hashlib.md5("_".join(cache_key_parts).encode()).hexdigest() + ".pkl"
         self.cache_file_path = os.path.join(cache_dir, cache_filename)
-        # --- ここまでキャッシュ機構の追加 ---
         
         # Load metadata first to determine which HSI paths are needed
         temp_h5_file = h5py.File(self.hdf5_path, 'r')
@@ -81,7 +78,7 @@ class HFD100_Dataset(Dataset):
             self.targets = targets_all_for_type
             self._hsi_keys_to_load_in_memory = hsi_internal_paths_all_for_type
 
-        # --- キャッシュを利用したデータロード ---
+        # Load from cache or HDF5
         if os.path.exists(self.cache_file_path):
             print(f"Loading HSI data from cache: {self.cache_file_path}")
             try:
@@ -94,13 +91,15 @@ class HFD100_Dataset(Dataset):
         else:
             print(f"Cache not found. Loading HSI data from HDF5: {self.hdf5_path}")
             self._load_hsi_data_from_hdf5(temp_h5_file)
-        # --- ここまでキャッシュを利用したデータロード ---
         
         temp_h5_file.close() # Close HDF5 file after all data is loaded or if only metadata was needed and cache hit
 
-        # Load sRGB max values (data_dir の親 = プロジェクトルート、data/ に配置想定)
+        # Load sRGB max values: check data_dir first, then project data/
+        base_dir = os.path.abspath(self.data_dir)
         proj_data = os.path.join(os.path.dirname(__file__), '..', 'data')
-        srgb_max_json_path = os.path.join(proj_data, f"{self.dataset_name}_srgb_max_values.json")
+        srgb_max_json_path = os.path.join(base_dir, f"{self.dataset_name}_srgb_max_values.json")
+        if not os.path.exists(srgb_max_json_path):
+            srgb_max_json_path = os.path.join(proj_data, f"{self.dataset_name}_srgb_max_values.json")
         self.srgb_max_values = {}
         try:
             with open(srgb_max_json_path, 'r') as f:

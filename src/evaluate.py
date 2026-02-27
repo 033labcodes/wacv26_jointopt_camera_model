@@ -22,24 +22,24 @@ from utils.visualization import save_classification_samples
 
 
 def load_config(config_path):
-    """設定ファイルを読み込む"""
+    """Load config file."""
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     return validate_config(config)
 
 
 def validate_config(config):
-    """設定の検証（train と同様に data_dir は省略可，env/デフォルトで補完）"""
+    """Validate config (data_dir optional, filled from env/default)."""
     if 'data_dir' not in config or config['data_dir'] is None:
         config['data_dir'] = os.environ.get('HFD100_DATA_DIR', './data')
     for field in ['camera_name', 'device']:
         if field not in config or config[field] is None:
-            raise ValueError(f'設定ファイルに必須フィールド {field} がありません')
+            raise ValueError(f'Config missing required field: {field}')
     return config
 
 
 def load_eval_config(eval_config_path):
-    """評価設定ファイル (eval_config.yaml) を読み込む"""
+    """Load evaluation config (eval_config.yaml)."""
     default_eval_cfg = {
         'run_parameters': {
             'train_run_dir': 'runs/train/your_run_name',
@@ -52,18 +52,18 @@ def load_eval_config(eval_config_path):
         'load_weights': {'css': True, 'gamma': True, 'ccm': True, 'base': True},
     }
     if not os.path.exists(eval_config_path):
-        print(f"警告: 評価設定ファイル {eval_config_path} が見つかりません。デフォルト設定を使用します。")
+        print(f"Warning: eval config {eval_config_path} not found. Using defaults.")
         return default_eval_cfg
     with open(eval_config_path, 'r') as f:
         eval_cfg = yaml.safe_load(f)
 
-    # run_parameters のデフォルト補完
+    # Default run_parameters
     if 'run_parameters' not in eval_cfg:
         eval_cfg['run_parameters'] = {}
     for k, v in default_eval_cfg['run_parameters'].items():
         eval_cfg['run_parameters'].setdefault(k, v)
 
-    # load_weights のデフォルト補完
+    # Default load_weights
     if 'load_weights' not in eval_cfg:
         eval_cfg['load_weights'] = {}
     for k, v in default_eval_cfg['load_weights'].items():
@@ -73,18 +73,17 @@ def load_eval_config(eval_config_path):
 
 
 def parse_args():
-    """コマンドライン引数をパースする"""
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='Evaluate CSS model')
-    parser.add_argument('--config', type=str, required=True, help='学習時の設定ファイルのパス')
-    parser.add_argument('--eval_config', type=str, required=True, help='評価時の設定ファイル (eval_config.yaml) のパス')
+    parser.add_argument('--config', type=str, required=True, help='Training config path')
+    parser.add_argument('--eval_config', type=str, required=True, help='Eval config path (eval_config.yaml)')
     return parser.parse_args()
 
 
 def setup_dataset(config, batch_size, num_workers):
-    """テストデータセットのセットアップ"""
-    
+    """Setup test dataset."""
     if 'dataset_name' not in config:
-        raise ValueError("設定ファイル (config.yaml) に 'dataset_name' フィールドが必要です。")
+        raise ValueError("Config must contain 'dataset_name'.")
         
     data_dir = config.get('data_dir', os.environ.get('HFD100_DATA_DIR', './data'))
     test_dataset = HFD100_Dataset(
@@ -106,41 +105,41 @@ def setup_dataset(config, batch_size, num_workers):
 
 
 def setup_models(train_config, train_run_dir_path, device, eval_cfg, num_classes):
-    """モデルのセットアップと重みの読み込み"""
+    """Setup models and load weights."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     checkpoint_subdir = eval_cfg.get('run_parameters', {}).get('checkpoint', 'best_model')
     
-    # CSSモデルのセットアップ
+    # CSS model
     init_css_weights_path = os.path.join(script_dir, 'camera_parameters/css', f"cmf_{train_config['camera_name']}.pt")
     
     if not os.path.exists(init_css_weights_path):
-        raise FileNotFoundError(f"CSSモデルの重みファイルが見つかりません: {init_css_weights_path}")
+        raise FileNotFoundError(f"CSS weights not found: {init_css_weights_path}")
     init_css_weights = torch.load(init_css_weights_path).float()
     css_model = CSSModel(init_weights=init_css_weights, in_channels=init_css_weights.shape[1], trainable=False).to(device)
 
     if eval_cfg.get('load_weights', {}).get('css', True):
         weights_path = os.path.join(train_run_dir_path, checkpoint_subdir, 'css_model.pth')
-        print(f"CSSモデルの重みをロードします: {weights_path}")
+        print(f"Loading CSS weights: {weights_path}")
         if not os.path.exists(weights_path):
-            raise FileNotFoundError(f"CSSモデルの重みファイルが見つかりません: {weights_path}")
+            raise FileNotFoundError(f"CSS weights not found: {weights_path}")
         css_model.load_state_dict(torch.load(weights_path))
     else:
-        print("CSSモデル: 学習済み重みをロードせず、デフォルトCMFを使用します。")
+        print("CSS: Using default CMF (no trained weights).")
     css_model.eval()
     
-    # ガンマモデルのセットアップ
+    # Gamma model
     gamma_model = DerivativeClippingGamma(init_gamma=1/2.2, grad_th=train_config['gradient_clipping'], trainable=train_config['train_gamma']).to(device)
     if eval_cfg.get('load_weights', {}).get('gamma', True):
         weights_path = os.path.join(train_run_dir_path, checkpoint_subdir, 'gamma_model.pth')
-        print(f"Gammaモデルの重みをロードします: {weights_path}")
+        print(f"Loading gamma weights: {weights_path}")
         if not os.path.exists(weights_path):
-            raise FileNotFoundError(f"Gammaモデルの重みファイルが見つかりません: {weights_path}")
+            raise FileNotFoundError(f"Gamma weights not found: {weights_path}")
         gamma_model.load_state_dict(torch.load(weights_path))
     else:
-        print("Gammaモデル: 学習済み重みをロードせず、デフォルトのガンマ補正を使用します。")
+        print("Gamma: Using default (no trained weights).")
     gamma_model.eval()
     
-    # CCMモデルのセットアップ（train と同じロジック: XYZ -> ccm_sRGB）
+    # CCM model (same logic as train: XYZ -> ccm_sRGB)
     if train_config['camera_name'] == 'XYZ':
         init_ccm_weights_path = os.path.join(script_dir, 'camera_parameters/ccm', "ccm_sRGB.pt")
     else:
@@ -150,29 +149,28 @@ def setup_models(train_config, train_run_dir_path, device, eval_cfg, num_classes
         init_ccm_weights = torch.load(init_ccm_weights_path).float()
     else:
         if train_config['camera_name'] != 'sRGB':
-            print(f"警告: デフォルトCCMファイル {init_ccm_weights_path} が見つかりません。{train_config['camera_name']} 用に単位行列を使用します。")
+            print(f"Warning: CCM file not found {init_ccm_weights_path}. Using identity for {train_config['camera_name']}.")
         init_ccm_weights = torch.eye(3).float()
     ccm_model = ColorCorrectionMatrix(init_ccm=init_ccm_weights, trainable=False).to(device)
     if eval_cfg.get('load_weights', {}).get('ccm', True):
         weights_path = os.path.join(train_run_dir_path, checkpoint_subdir, 'ccm_model.pth')
-        print(f"CCMモデルの重みをロードします: {weights_path}")
+        print(f"Loading CCM weights: {weights_path}")
         if not os.path.exists(weights_path):
-            raise FileNotFoundError(f"CCMモデルの重みファイルが見つかりません: {weights_path}")
+            raise FileNotFoundError(f"CCM weights not found: {weights_path}")
         ccm_model.load_state_dict(torch.load(weights_path))
     else:
-        print(f"CCMモデル: 学習済み重みをロードせず、{train_config['camera_name']} のデフォルトCCMを使用します。")
+        print(f"CCM: Using default for {train_config['camera_name']} (no trained weights).")
     ccm_model.eval()
     
     
     if eval_cfg.get('load_weights', {}).get('base', True):
         weights_path = os.path.join(train_run_dir_path, checkpoint_subdir, 'classification_model.pth')
-        print(f"ベースモデルの学習済み重みをロードします: {weights_path}")
+        print(f"Loading classification weights: {weights_path}")
         if not os.path.exists(weights_path):
-            raise FileNotFoundError(f"ベースモデルの重みファイルが見つかりません: {weights_path}")
+            raise FileNotFoundError(f"Classification weights not found: {weights_path}")
 
-        # --- モデルの選択 ---
         model_name = train_config.get('classification_model', 'ResNet')
-        print(f"分類モデルをロードします: {model_name}")
+        print(f"Loading classification model: {model_name}")
 
         base_model = None
         if model_name == 'ResNet':
@@ -181,7 +179,7 @@ def setup_models(train_config, train_run_dir_path, device, eval_cfg, num_classes
             base_model.fc = nn.Linear(num_ftrs, num_classes)
             loaded_state_dict = torch.load(weights_path, map_location=device)
         
-            # 学習時のモデル(fcがSequential)と評価時のモデル(fcがLinear)のキー名の違いを吸収する
+            # Remap fc.1 -> fc (train uses Sequential with Dropout, eval uses Linear)
             key_mappings = {
                 'fc.1.weight': 'fc.weight',
                 'fc.1.bias': 'fc.bias',
@@ -218,7 +216,7 @@ def setup_models(train_config, train_run_dir_path, device, eval_cfg, num_classes
                     new_state_dict[new_key] = new_state_dict.pop(saved_key)
             base_model.load_state_dict(new_state_dict, strict=False)
         else:
-            raise ValueError(f"サポートされていないモデルタイプです: {model_name}")
+            raise ValueError(f"Unsupported model type: {model_name}")
 
         base_model = base_model.to(device)
         base_model.eval()
@@ -227,7 +225,7 @@ def setup_models(train_config, train_run_dir_path, device, eval_cfg, num_classes
 
 
 def custom_evaluate(model_wrapper, test_loader, output_dir, num_visualization_samples=20):
-    """拡張された評価メソッド（train の ModelWrapper.process_batch と同様のパイプライン）"""
+    """Evaluation (same pipeline as ModelWrapper.process_batch)."""
     css_model = model_wrapper.css_model
     gamma_model = model_wrapper.gamma_model
     ccm_model = model_wrapper.ccm_model
@@ -245,15 +243,15 @@ def custom_evaluate(model_wrapper, test_loader, output_dir, num_visualization_sa
     total = 0
     num_batches = len(test_loader)
     
-    # 混同行列用の変数
+    # Confusion matrix
     all_predictions = []
     all_targets = []
     
-    # 可視化サンプルの保存用ディレクトリ
+    # Visualization output dir
     vis_dir = os.path.join(output_dir, 'visualizations')
     os.makedirs(vis_dir, exist_ok=True)
     
-    # 可視化用のインデックスをランダムに選択
+    # Random indices for visualization
     total_samples = num_batches * test_loader.batch_size
     vis_indices = random.sample(range(total_samples), min(num_visualization_samples, total_samples))
     
@@ -266,14 +264,14 @@ def custom_evaluate(model_wrapper, test_loader, output_dir, num_visualization_sa
         for i, (inputs_hsi, target) in enumerate(test_loader):
             print(f'\rEvaluation: {i+1}/{num_batches}', end='')
             
-            # HSIをRGBに変換（train の process_batch と同じ順序）
+            # HSI -> RGB (same order as process_batch)
             inputs_hsi = inputs_hsi.to(device)
             rgb_images = css_model(inputs_hsi)
             rgb_images = ccm_model(rgb_images)
             rgb_images = rgb_images.clamp(min=0)
             rgb_images = gamma_model(rgb_images)
             
-            # 分類
+            # Classification
             outputs = base_model(rgb_images)
             loss = model_wrapper.criterion(outputs, target.to(device))
             
@@ -282,11 +280,11 @@ def custom_evaluate(model_wrapper, test_loader, output_dir, num_visualization_sa
             total += target.size(0)
             correct += predicted.eq(target.to(device)).sum().item()
             
-            # 混同行列用のデータ収集
+            # Collect for confusion matrix
             all_predictions.extend(predicted.cpu().numpy())
             all_targets.extend(target.numpy())
             
-            # 可視化用データの収集
+            # Collect samples for visualization
             for j in range(len(rgb_images)):
                 global_idx = i * test_loader.batch_size + j
                 if global_idx in vis_indices:
@@ -294,9 +292,9 @@ def custom_evaluate(model_wrapper, test_loader, output_dir, num_visualization_sa
                     sample_predictions.append(predicted[j].item())
                     sample_targets.append(target[j].item())
     
-    print("\n評価完了")
+    print("\nEvaluation complete.")
     
-    # 混同行列の作成と保存
+    # Confusion matrix
     cm = confusion_matrix(all_targets, all_predictions)
     plt.figure(figsize=(10, 8))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
@@ -306,12 +304,12 @@ def custom_evaluate(model_wrapper, test_loader, output_dir, num_visualization_sa
     plt.savefig(os.path.join(output_dir, 'confusion_matrix.png'))
     plt.close()
     
-    # 分類レポートの保存
+    # Classification report
     report = classification_report(all_targets, all_predictions, output_dict=True)
     with open(os.path.join(output_dir, 'classification_report.json'), 'w') as f:
         json.dump(report, f, indent=4)
     
-    # 可視化サンプルの保存
+    # Save visualization samples
     if sample_images:
         save_classification_samples(
             vis_dir,
@@ -321,9 +319,9 @@ def custom_evaluate(model_wrapper, test_loader, output_dir, num_visualization_sa
             num_samples=len(sample_images)
         )
     
-    # AA (Average Accuracy) の計算
+    # AA (Average Accuracy)
     class_accuracy = cm.diagonal() / cm.sum(axis=1)
-    aa = np.nanmean(class_accuracy)  # クラスのサンプルがない場合にnanになる可能性があるのでnanmeanを使用
+    aa = np.nanmean(class_accuracy)
 
     metrics = {
         'loss': total_loss / num_batches,
@@ -335,7 +333,7 @@ def custom_evaluate(model_wrapper, test_loader, output_dir, num_visualization_sa
 
 
 def save_eval_run_config(args, train_cfg, eval_cfg, output_dir):
-    """評価実行時の設定（学習設定、評価設定、引数）を保存する"""
+    """Save eval run config (args, train config, eval config)."""
     full_eval_config = {
         'command_line_args': vars(args),
         'training_config': train_cfg,
@@ -347,30 +345,28 @@ def save_eval_run_config(args, train_cfg, eval_cfg, output_dir):
 
 
 def main():
-    """メイン関数"""
     args = parse_args()
     train_config = load_config(args.config)
     eval_cfg = load_eval_config(args.eval_config)
     
     device = torch.device(train_config['device'])
     
-    # output_dir は eval_cfg から取得し、'runs/eval' を付加する
+    # output_dir from eval_cfg, prefixed with runs/eval
     output_dir_resolved = os.path.join('runs/eval', eval_cfg['run_parameters']['output_dir'])
     os.makedirs(output_dir_resolved, exist_ok=True)
     
     save_eval_run_config(args, train_config, eval_cfg, output_dir_resolved)
     
-    # batch_size, num_workers は eval_cfg から取得
+    # batch_size, num_workers from eval_cfg
     test_loader, num_classes = setup_dataset(
         train_config, 
         eval_cfg['run_parameters']['batch_size'], 
         eval_cfg['run_parameters']['num_workers']
     )
     
-    # train_run_dir は eval_cfg から取得し、setup_models に渡す
     css_model, gamma_model, ccm_model, base_model = setup_models(
         train_config, 
-        eval_cfg['run_parameters']['train_run_dir'], # args.train_run_dir から変更
+        eval_cfg['run_parameters']['train_run_dir'],
         device, 
         eval_cfg,
         num_classes
@@ -384,30 +380,29 @@ def main():
         ccm_model=ccm_model,
         classification_model=base_model,
         criterion=criterion,
-        optimizer=None,  # 評価時は不要
-        lr_schedule=None,  # 評価時は不要
+        optimizer=None,
+        lr_schedule=None,
         device=device,
         logger=None,
         camera_name=train_config['camera_name']
     )
     
-    # 評価の実行
-    print(f"評価を開始します: {output_dir_resolved}")
+    print(f"Starting evaluation: {output_dir_resolved}")
     metrics = custom_evaluate(
         model_wrapper=model_wrapper,
         test_loader=test_loader,
         output_dir=output_dir_resolved,
-        num_visualization_samples=eval_cfg['run_parameters']['num_visualization_samples'] # args から変更
+        num_visualization_samples=eval_cfg['run_parameters']['num_visualization_samples']
     )
     
-    # 結果の保存
+    # Save results
     with open(os.path.join(output_dir_resolved, 'metrics.json'), 'w') as f:
         json.dump(metrics, f, indent=4)
     
-    print(f"\n評価が完了しました。結果は {output_dir_resolved} に保存されています。")
-    print(f"損失: {metrics['loss']:.4f}")
-    print(f"精度 (OA): {metrics['accuracy']:.2f}%")
-    print(f"平均精度 (AA): {metrics['average_accuracy']:.2f}%")
+    print(f"\nEvaluation complete. Results saved to {output_dir_resolved}")
+    print(f"Loss: {metrics['loss']:.4f}")
+    print(f"Accuracy (OA): {metrics['accuracy']:.2f}%")
+    print(f"Average Accuracy (AA): {metrics['average_accuracy']:.2f}%")
 
 
 if __name__ == '__main__':

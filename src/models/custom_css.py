@@ -30,10 +30,7 @@ class CSSModel(nn.Module):
         self.conv.weight.data = weights
     
     def compute_smoothness_loss(self):
-        """
-        CSS感度関数の滑らかさ制約を計算
-        隣接する波長間の差の二乗平均を返す
-        """
+        """Compute CSS smoothness constraint (mean squared diff between adjacent wavelengths)."""
         weights = self.conv.weight.squeeze(-1).squeeze(-1)
         
         diff = weights[:, 1:] - weights[:, :-1]

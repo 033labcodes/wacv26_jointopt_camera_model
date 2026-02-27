@@ -4,22 +4,9 @@ import torch
 from scipy import interpolate
 
 
-def slice_spectrum(spectrum: np.array, input_lower_wavelength: int, input_upper_wavelength: int, 
+def slice_spectrum(spectrum: np.array, input_lower_wavelength: int, input_upper_wavelength: int,
                   target_lower_wavelength: int, target_upper_wavelength: int, spectrum_stepsize: float):
-    """
-    スペクトルデータを指定された波長範囲でスライスする
-    
-    Args:
-        spectrum (np.array): 入力スペクトル
-        input_lower_wavelength (int): 入力波長の下限
-        input_upper_wavelength (int): 入力波長の上限
-        target_lower_wavelength (int): 目標波長の下限
-        target_upper_wavelength (int): 目標波長の上限
-        spectrum_stepsize (float): 波長のステップサイズ
-        
-    Returns:
-        tuple: (スライスされたスペクトル, 対応する波長)
-    """
+    """Slice spectrum by wavelength range. Returns (sliced_spectrum, wavelengths)."""
     input_wavelength = np.array(np.arange(input_lower_wavelength, input_upper_wavelength + 1, spectrum_stepsize), dtype=int)
     start_index = np.argmin(np.abs(input_wavelength - target_lower_wavelength))
     end_index = np.argmin(np.abs(input_wavelength - target_upper_wavelength)) + 1
@@ -27,21 +14,10 @@ def slice_spectrum(spectrum: np.array, input_lower_wavelength: int, input_upper_
 
 
 def adjust_cmf_to_target_wavelength(cmf_array, source_wavelength, target_wavelength):
-    """
-    色マッチング関数を目標波長に合わせて補間する
-    
-    Args:
-        cmf_array (np.ndarray): 色マッチング関数の配列（shape: [3, n]）
-        source_wavelength (np.ndarray): 元の波長の配列
-        target_wavelength (np.ndarray): 目標の波長の配列
-        
-    Returns:
-        np.ndarray: 補間されたCMF配列
-    """    
-    # 入力データの形状を確認
+    """Interpolate CMF to target wavelengths. Returns adjusted CMF array."""
     if cmf_array.shape[1] != len(source_wavelength):
         print(f"Warning: Mismatch in array lengths. cmf_array: {cmf_array.shape[1]}, source_wavelength: {len(source_wavelength)}")
-        # 短い方に合わせて切り詰める
+        # Truncate to shorter length
         min_length = min(cmf_array.shape[1], len(source_wavelength))
         cmf_array = cmf_array[:, :min_length]
         source_wavelength = source_wavelength[:min_length]
@@ -61,25 +37,14 @@ def adjust_cmf_to_target_wavelength(cmf_array, source_wavelength, target_wavelen
     return adjusted_cmf
 
 
-def convert_css_wavelength_to_tensor(input_dir, output_dir, 
+def convert_css_wavelength_to_tensor(input_dir, output_dir,
                                    input_lower_wavelength=400, input_upper_wavelength=700,
                                    target_lower_wavelength=451, target_upper_wavelength=700,
                                    spectrum_stepsize=9.357):
-    """
-    CSSの波長域を調整し，テンソルに変換する
-    
-    Args:
-        input_dir (str): 入力ディレクトリのパス
-        output_dir (str): 出力ディレクトリのパス
-        input_lower_wavelength (int): 入力波長の下限
-        input_upper_wavelength (int): 入力波長の上限
-        target_lower_wavelength (int): 目標波長の下限
-        target_upper_wavelength (int): 目標波長の上限
-        spectrum_stepsize (float): 波長のステップサイズ
-    """
+    """Adjust CSS wavelength range and convert to tensor."""
     os.makedirs(output_dir, exist_ok=True)
     
-    # HSIの波長範囲を定義
+    # HSI wavelength range
     hsi_wavelength = np.arange(target_lower_wavelength, target_upper_wavelength + 5, 13.3)
     
     for file_name in os.listdir(input_dir):
@@ -90,7 +55,7 @@ def convert_css_wavelength_to_tensor(input_dir, output_dir,
                 print(f"{file_name} - Warning - array shape: {array.shape}")
                 continue
             
-            # 波長範囲のスライス
+            # Slice wavelength range
             sliced_arrays = []
             for i in range(array.shape[0]):
                 spectrum = array[i, :].reshape(-1)
@@ -106,21 +71,19 @@ def convert_css_wavelength_to_tensor(input_dir, output_dir,
             
             sliced_array = np.array(sliced_arrays)
             
-            # HSIの波長に合わせて補間
+            # Interpolate to HSI wavelengths
             adjusted_array = adjust_cmf_to_target_wavelength(
                 sliced_array,
                 css_wavelength,
                 hsi_wavelength
             )
             
-            # テンソルに変換
+            # Convert to tensor
             tensor = torch.from_numpy(adjusted_array.reshape(3, -1, 1, 1))
             
-            # 保存
             output_path = os.path.join(output_dir, file_name.replace('.npy', '.pt'))
             torch.save(tensor, output_path)
-            print(f'変換して保存しました: {file_name} -> {os.path.basename(output_path)}')
-            print(f'変換後の形状: {tensor.shape}')
+            print(f'Saved: {file_name} -> {os.path.basename(output_path)}, shape: {tensor.shape}')
 
 
 if __name__ == '__main__':

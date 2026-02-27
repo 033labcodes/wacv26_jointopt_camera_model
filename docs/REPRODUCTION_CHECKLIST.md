@@ -1,25 +1,26 @@
-# 再現手順チェックリスト
+# Reproduction Checklist
 
-## 構成（簡略化後）
+## Overview
 
-- `train.py` + `evaluate.py` のみ
-- `hsi_dataset.py` のみ（random split 版は削除）
-- Flower / Leaves 用 config: `flower.yaml`, `leaves.yaml`
+- `train.py` + `evaluate.py` only
+- Single dataset loader: `hsi_dataset.py`
+- Flower / Leaves configs: `flower.yaml`, `leaves.yaml`
 
-## やるべきこと
+## Tasks
 
-### 1. データセット
+### 1. Dataset and Preprocessing
 
-- [ ] 前処理済み HDF5 (MatFlower60.h5, MatLeaves60.h5) を配置
-- [ ] `compute_srgb_max.py` で srgb_max_values.json を生成
+- [ ] Download original HFD100 dataset
+- [ ] Convert `.mat` to HDF5 (`MatFlower60.h5`, `MatLeaves60.h5`)
+- [ ] Run `compute_srgb_max.py` to generate sRGB max JSON files
+- [ ] Set `HFD100_DATA_DIR` or `data_dir` in config to the preprocessed data path
 
-### 2. 学習
+### 2. Training
 
-- [ ] `HFD100_DATA_DIR` 設定または config の `data_dir` 編集
 - [ ] Flower: `python src/train.py --config src/configs/flower.yaml`
 - [ ] Leaves: `python src/train.py --config src/configs/leaves.yaml`
 
-### 3. 評価
+### 3. Evaluation
 
-- [ ] eval_config.yaml の `train_run_dir` を学習ディレクトリに設定
-- [ ] `python src/evaluate.py --config ... --eval_config ...`
+- [ ] Set `train_run_dir` in `src/configs/eval_config.yaml` to the checkpoint directory
+- [ ] Run: `python src/evaluate.py --config src/configs/flower.yaml --eval_config src/configs/eval_config.yaml`

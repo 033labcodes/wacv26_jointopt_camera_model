@@ -18,15 +18,15 @@ from models.custom_isp import ColorCorrectionMatrix, DerivativeClippingGamma
 
 
 def load_config(config_path):
-    """設定ファイルを読み込む"""
+    """Load config file."""
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     return config
 
 def parse_args():
-    """コマンドライン引数をパースする"""
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='Train CSS model')
-    parser.add_argument('--config', type=str, required=True, help='設定ファイルのパス')
+    parser.add_argument('--config', type=str, required=True, help='Config file path')
     parser.add_argument('--gradient_clipping', type=float, default=None, help='Directly set gradient clipping threshold')
     parser.add_argument('--css_smoothness_weight', type=float, default=0.0, help='Weight for CSS smoothness constraint loss (0.0 = no smoothness constraint)')
     parser.add_argument('--camera_name', type=str, default=None, help='Camera name to override config (e.g., Sony Nex5N)')
@@ -44,7 +44,7 @@ def parse_args():
     parser.add_argument('--save_name', type=str, default=None, help='Override save_name (e.g., wacv_exp1_resnet_nocss_noisp_leaves_canon)')
     return parser.parse_args()
 
-# args で上書き可能な config キー（arg名と config キーが同じ）
+# Config keys overridable by args (arg name same as config key)
 _ARG_OVERRIDE_KEYS = [
     'camera_name', 'train_css', 'train_ccm', 'css_lr', 'ccm_lr', 'gamma_lr',
     'dataset_name', 'train_gamma', 'train_classification', 'classification_lr',
@@ -52,14 +52,14 @@ _ARG_OVERRIDE_KEYS = [
 ]
 
 def apply_arg_overrides(args, config):
-    """args で指定された値を config に反映する"""
+    """Apply arg values to config."""
     for key in _ARG_OVERRIDE_KEYS:
         val = getattr(args, key, None)
         if val is not None:
             config[key] = val
 
 def setup_dataset(config):
-    """データセットのセットアップ"""
+    """Setup dataset and dataloaders."""
     transform_list = [
         T.RandomHorizontalFlip(p=0.5),
         T.RandomChoice([
@@ -81,7 +81,7 @@ def setup_dataset(config):
     return train_loader, val_loader, train_dataset.num_classes()
 
 def setup_models(config, num_classes, device):
-    """モデルのセットアップ"""
+    """Setup models."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
     css_weights_path = os.path.join(script_dir, 'camera_parameters/css', f"cmf_{config['camera_name']}.pt")
@@ -134,12 +134,12 @@ def setup_models(config, num_classes, device):
             pretrained_state_dict = torch.load(config['classifer_weights'], map_location=device)
             classification_model.load_state_dict(pretrained_state_dict)
     else:
-        raise ValueError(f"サポートされていないモデルタイプです: {config['classification_model']}")
+        raise ValueError(f"Unsupported model type: {config['classification_model']}")
 
     return css_model, gamma_model, ccm_model, classification_model
 
 def setup_optimizer(config, css_model, gamma_model, ccm_model, classification_model):
-    """オプティマイザのセットアップ"""
+    """Setup optimizer and LR scheduler."""
     optimizer_param_groups = []
     
     if config['train_css']:
@@ -152,7 +152,7 @@ def setup_optimizer(config, css_model, gamma_model, ccm_model, classification_mo
         optimizer_param_groups.append({'params': classification_model.parameters(), 'lr': config['classification_lr']})
 
     if not optimizer_param_groups:
-        raise ValueError('最適化するパラメータがありません')
+        raise ValueError('No parameters to optimize')
 
     optimizer = optim.Adam(optimizer_param_groups)
     lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=config['lr_step_size'], gamma=config['lr_gamma'])
@@ -208,7 +208,7 @@ def main():
         
         if val_metrics['val_loss'] < best_val_loss:
             best_val_loss = val_metrics['val_loss']
-            print(f'最良モデルを保存 (val_loss: {val_metrics["val_loss"]:.4f})')
+            print(f'Saving best model (val_loss: {val_metrics["val_loss"]:.4f})')
             logger.save_checkpoint(
                 epoch=epoch,
                 css_model=css_model,
@@ -218,7 +218,7 @@ def main():
                 is_best=True
             )
 
-        # latest は毎エポック上書き保存
+        # Save latest every epoch (overwrite)
         logger.save_checkpoint(
             epoch=epoch,
             css_model=css_model,

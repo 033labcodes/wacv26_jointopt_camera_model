@@ -6,7 +6,7 @@ def get_XYZ_CMFs(cmf_path: str=None):
         _dir = os.path.join(os.path.dirname(__file__), '..', '..', 'data')
         cmf_path = os.path.join(_dir, 'CIE_XYZ_CMFs.csv')
     if not os.path.exists(cmf_path):
-        raise FileNotFoundError(f"色度関数ファイルが見つかりません: {cmf_path}")
+        raise FileNotFoundError(f"CMF file not found: {cmf_path}")
     cmf = np.genfromtxt(cmf_path, delimiter=',')
     return cmf
 
@@ -60,9 +60,9 @@ if __name__ == "__main__":
     
     save_path = os.path.join(save_dir, 'ccm_sRGB.pt')
     torch.save(M_tensor, save_path)
-    print(f'CCM行列を保存しました: {save_path}')
+    print(f'CCM matrix saved: {save_path}')
     
-    # CIE XYZ CMFをテンソルとして保存
+    # Save CIE XYZ CMF as tensor
     cmf = get_XYZ_CMFs()
     cmf = cmf[::5]
     cmf_tensor = torch.tensor(cmf[:, 1:], dtype=torch.float32)
@@ -72,4 +72,4 @@ if __name__ == "__main__":
     save_dir = os.path.join('../camera_parameters', 'css')
     cmf_save_path = os.path.join(save_dir, 'cmf_cie_XYZ.pt')
     torch.save(cmf_tensor, cmf_save_path)
-    print(f'CIE XYZ CMFを保存しました: {cmf_save_path}')
+    print(f'CIE XYZ CMF saved: {cmf_save_path}')

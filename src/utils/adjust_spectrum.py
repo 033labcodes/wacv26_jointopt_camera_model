@@ -22,16 +22,7 @@ class SpectrumAdjuster:
         self.new_wavelengths = new_wavelengths
 
     def transform_hsi_data(self, hsi_data):
-        """
-        HSIデータのスペクトルバンドを調整する関数
-    
-    Args:
-        hsi_data (numpy.ndarray): 入力HSIデータ (height, width, bands)
-        
-    Returns:
-        numpy.ndarray: 調整されたHSIデータ
-        numpy.ndarray: 調整後の波長配列
-        """
+        """Adjust HSI spectral bands. Args: hsi_data (H,W,bands). Returns: adjusted HSI, wavelengths."""
         height, width = hsi_data.shape[:2]
 
         adjusted_data = np.zeros((height, width, len(self.new_wavelengths)))

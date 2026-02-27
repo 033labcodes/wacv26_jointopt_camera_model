@@ -1,10 +1,10 @@
-# 評価用設定
-# 使用例: python evaluate.py --config configs/flower.yaml --eval_config configs/eval_config.yaml
+# Evaluation config
+# Example: python evaluate.py --config configs/flower.yaml --eval_config configs/eval_config.yaml
 
 run_parameters:
-  # 学習済みチェックポイントのディレクトリ（runs/train/... 内）
+  # Checkpoint directory (under runs/train/...)
   train_run_dir: runs/train/your_run_name
-  # ロードするチェックポイント: best_model | latest
+  # Checkpoint to load: best_model | latest
   checkpoint: best_model
   output_dir: flower_eval
   batch_size: 32

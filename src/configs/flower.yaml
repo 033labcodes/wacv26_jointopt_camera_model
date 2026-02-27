@@ -1,4 +1,4 @@
-# HFD100_Flower 用設定
+# HFD100_Flower config
 
 dataset_name: HFD100_Flower
 data_dir: ./data

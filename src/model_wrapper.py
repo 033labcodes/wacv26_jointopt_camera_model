@@ -2,7 +2,7 @@ import torch
 
 class ModelWrapper:
     def __init__(self, css_model, gamma_model, ccm_model, classification_model, criterion, optimizer, lr_schedule, device, logger, camera_name, css_smoothness_weight=0.0):
-        """モデルラッパーの初期化"""
+        """Initialize model wrapper."""
         self.css_model = css_model
         self.gamma_model = gamma_model
         self.ccm_model = ccm_model
@@ -16,7 +16,7 @@ class ModelWrapper:
         self.css_smoothness_weight = css_smoothness_weight
 
     def process_batch(self, inputs_hsi, target, training=True):
-        """バッチの処理"""
+        """Process a batch."""
         inputs_hsi = inputs_hsi.to(self.device)
         target = target.to(self.device)
         
@@ -50,7 +50,7 @@ class ModelWrapper:
         return loss, outputs, rgb_images
     
     def train(self, train_loader):
-        """モデルを訓練する"""
+        """Train the model."""
         self.css_model.train()
         self.gamma_model.train()
         self.ccm_model.train()
@@ -77,7 +77,7 @@ class ModelWrapper:
         return {'train_loss': total_loss / num_batches, 'train_accuracy': 100. * correct / total}
     
     def evaluate(self, val_loader):
-        """モデルを評価する"""
+        """Evaluate the model."""
         self.css_model.eval()
         self.gamma_model.eval()
         self.ccm_model.eval()

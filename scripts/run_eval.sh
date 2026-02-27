@@ -1,6 +1,6 @@
 #!/bin/bash
-# 評価実行例
-# eval_config.yaml の train_run_dir を学習済みチェックポイントのパスに編集してから実行
+# Evaluation script
+# Edit train_run_dir in eval_config.yaml to point to the checkpoint directory
 
 set -e
 cd "$(dirname "$0")/.."
