@@ -14,8 +14,8 @@ import timm
 from hsi_dataset import HFD100_Dataset
 from train_logger import TrainLogger
 from model_wrapper import ModelWrapper
-from models.custom_css import CSSModel
-from models.custom_isp import ColorCorrectionMatrix, DerivativeClippingGamma
+from models.css_model import CSSModel
+from models.isp_model import ColorCorrectionMatrix, DerivativeClippingGamma
 
 
 def load_config(config_path):

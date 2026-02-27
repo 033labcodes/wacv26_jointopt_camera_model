@@ -16,8 +16,8 @@ import matplotlib.pyplot as plt
 
 from hsi_dataset import HFD100_Dataset
 from model_wrapper import ModelWrapper
-from models.custom_css import CSSModel
-from models.custom_isp import ColorCorrectionMatrix, DerivativeClippingGamma
+from models.css_model import CSSModel
+from models.isp_model import ColorCorrectionMatrix, DerivativeClippingGamma
 from utils.visualization import save_classification_samples
 
 
