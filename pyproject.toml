@@ -1,6 +1,7 @@
 [tool.poetry]
 name = "wacv26-jointopt-hfd100"
 version = "0.1.0"
+package-mode = false
 description = "Joint Optimization of Camera Model and Deep Neural Network for HFD100 Hyperspectral Classification (WACV 2026)"
 authors = ["dekkaiinu <uni.noboru@gmail.com>"]
 readme = "README.md"
