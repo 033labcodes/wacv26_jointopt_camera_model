@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "wacv26-jointopt-hfd100"
+version = "0.1.0"
+package-mode = false
+description = "Joint Optimization of Camera Model and Deep Neural Network for HFD100 Hyperspectral Classification (WACV 2026)"
+authors = ["dekkaiinu <uni.noboru@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+h5py = "^3.13.0"
+matplotlib = "^3.10.1"
+opencv-python = "^4.11.0.86"
+pandas = "^2.2.3"
+torch = "^2.6.0"
+pyyaml = "^6.0.2"
+scipy = "^1.15.2"
+torchvision = "^0.22.0"
+tqdm = "^4.67.1"
+scikit-learn = "^1.6.1"
+timm = "^1.0.15"
+huggingface-hub = "^0.26.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

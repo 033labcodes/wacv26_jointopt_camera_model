@@ -1,0 +1,18 @@
+# Evaluation config
+# Example: python evaluate.py --config configs/flower.yaml --eval_config configs/eval_config.yaml
+
+run_parameters:
+  # Checkpoint directory (under runs/train/...)
+  train_run_dir: runs/train/your_run_name
+  # Checkpoint to load: best_model | latest
+  checkpoint: best_model
+  output_dir: flower_eval
+  batch_size: 32
+  num_workers: 4
+  num_visualization_samples: 20
+
+load_weights:
+  css: true
+  gamma: true
+  ccm: true
+  base: true

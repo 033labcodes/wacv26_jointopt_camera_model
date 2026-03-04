@@ -1,0 +1,27 @@
+# HFD100_Leaves config
+
+dataset_name: HFD100_Leaves
+data_dir: ./data
+batch_size: 32
+num_workers: 4
+
+camera_name: Canon500D
+epochs: 100
+train_css: True
+css_lr: 0.0001
+train_ccm: True
+ccm_lr: 0.0001
+
+gradient_clipping: 1000
+train_gamma: True
+gamma_lr: 0.0001
+
+train_classification: True
+classification_lr: 0.0001
+classification_model: ResNet
+
+device: cuda
+lr_step_size: 20
+lr_gamma: 0.3
+
+save_name: leaf_resnet
