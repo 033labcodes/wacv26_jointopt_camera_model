@@ -33,7 +33,16 @@ Convert `.mat` files to HDF5 format to produce:
 - `MatLeaves60.h5`
 - (Optional) `MatScenes60.h5`
 
-The conversion script is not included. Please prepare HDF5 files with this structure:
+Use the provided conversion script:
+
+```bash
+python data/hfd100tohdf5.py \
+  --input-root /path/to/HFD100_Mat_dataset \
+  --output-dir ./data \
+  --datasets flower leaves
+```
+
+The generated HDF5 files have the following structure:
 
 ```
 train/
