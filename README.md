@@ -1,6 +1,6 @@
 # Joint Optimization of Camera Model and Deep Neural Network for Image Recognition (WACV 2026)
 
-Official implementation for HFD100 hyperspectral image classification with joint optimization of camera spectral sensitivity and a deep classifier.
+Official implementation for HFD100 hyperspectral image classification with joint optimization of camera model and a classification network.
 
 **Paper:** [Joint Optimization of Camera Model and Deep Neural Network for Image Recognition](https://openaccess.thecvf.com/content/WACV2026/papers/Noboru_Joint_Optimization_of_Camera_Model_and_Deep_Neural_Network_for_WACV_2026_paper.pdf) (WACV 2026)
 
